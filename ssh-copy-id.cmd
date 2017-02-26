@@ -4,6 +4,8 @@
 @goto :eof
 }
 
+set version "1.0"
+
 proc usage_and_exit { {errmsg {}} } {
 
     if { $::quiet == 1 } {
@@ -17,7 +19,10 @@ proc usage_and_exit { {errmsg {}} } {
         puts "Error: $errmsg"
         puts ""
     }
-    puts {Usage: ssh-copy-id [-q|-qq] [-i identity_file] [user@]host [password]}
+    puts "ssh-copy-id v$::version - install your public key in a remote machine’s authorized_keys"
+    puts "Copyright (C) 2017 Konstantin Kushnir <chpock@gmail.com>"
+    puts ""
+    puts "Usage: ssh-copy-id \[-q|-qq\] \[-i identity_file\] \[user@\]host \[password\]"
     puts ""
     puts "Parameters:"
     puts "  -q                 Quiet mode. Only \"OK\" or \"ERROR\" will be"
