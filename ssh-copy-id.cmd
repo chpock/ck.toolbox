@@ -4,7 +4,11 @@
 @goto :eof
 }
 
-set version "1.0"
+set version "1.0.1"
+
+# History
+# v1.0.1   2016-02-27 Try to open socket before run plink
+#                     More accurately handle plink error on failed authentication
 
 proc usage_and_exit { {errmsg {}} } {
 
@@ -134,11 +138,14 @@ if { [llength $key] == 0 } {
 }
 
 if { ![regexp {^.+@.+} $host] } {
+    set hostonly $host
     puts -nonewline "Username: "
     flush stdout
     set user [gets stdin]
     set host "$user@$host"
     unset user
+} {
+    regsub {^.+?@} $host {} hostonly
 }
 
 if { ![info exists pass] } {
@@ -166,7 +173,21 @@ proc plink_error { message } {
     exit 1
 }
 
-if { [catch { exec -- {*}[auto_execok plink] $host -pw $pass "exit" << "y\ny" 2>@1 } err] } {
+if { [catch { socket $hostonly 22 } err] } {
+    if { !$::quiet } {
+        puts " ERROR"
+        puts ""
+        puts "Error while connection to ${hostonly}:22"
+        puts $err
+    } elseif { $::quiet == 1 } {
+        puts "ERROR"
+    }
+
+    exit 1
+}
+close $err
+
+if { [catch { exec -- {*}[auto_execok plink] $host -pw $pass "exit" << "y\ny" 2>@1 } err] || [string first "Access denied" $err] != -1 } {
     regsub {^.+?\(y/n\)\s+} $err {} err
     plink_error $err
 }
