@@ -44,9 +44,27 @@ foreach { section data } $data {
     unset section data
 }
 
-if { [llength $argv] } {
-    set script_orig [lindex $argv 0]
-    set script [file normalize [lindex $argv 0]]
+
+for { set i 0 } { $i < [llength $argv] } { incr i } {
+    set opt [lindex $argv $i]
+    if { $opt eq "-script" || $opt eq "--script" } {
+       if { [info exists script] } {
+           puts stderr "Error, double script option"
+           exit 1
+       }
+       set script [lindex $argv [incr i]]
+       continue
+    }
+    if { [info exists host-mask] } {
+        puts stderr "Error, double host mask"
+        exit 1
+    }
+    set host-mask [lindex $argv $i]
+}
+
+
+if { [info exists script] } {
+    set script [file normalize $script]
 
     if { ![file exists $script] } {
         append script ".tcl"
@@ -222,6 +240,9 @@ proc check_ssh_connect { config } {
 }
 
 puts "Global domain control: [dict get $common DomainControl]"
+if { [info exists host-mask] } {
+    puts "Host-mask: ${host-mask}"
+}
 puts ""
 puts "Updating:"
 
@@ -281,7 +302,7 @@ foreach { host config } $hosts {
                     set key "PublicKeyFile"
                 }
 
-                if { $key ni {HostName UserName PublicKeyFile} } \
+                if { $key ni {HostName UserName PublicKeyFile RemoteCommand} } \
                     continue
 
                 if { [string first "$key\\" $line] == 0 } {
@@ -328,6 +349,9 @@ foreach { host config } $hosts {
         set config [dict merge $common [list HostName $host] $config]
 
         if { [dict get $config Disabled] } \
+            continue
+
+        if { [info exists host-mask] && ![string match ${host-mask} $host] } \
             continue
 
         puts -nonewline "    $host:"
