@@ -8,18 +8,28 @@ set version "1.0"
 
 set common {
     UserName        build
+
     PathKTX         .
     BaseKTX         "Base.ktx"
+    ExecKTX         yes
+
     PathNetBox      .
     BaseNetBox      "Base.netbox"
+    ExecNetBox      yes
+
+    PathRDP         .
+    BaseRDP         "Base.rdpc"
+    ExecRDP         yes
+
+    ExecPublicKeys  no
+
     RemoteDirectory NULL
     NoRoot          no
-
-    ExecCommand     no
 
     Disabled        no
 
     DomainControl   no
+    Domain          ""
 }
 
 set remoteconfig "remoteconfig.tcl"
@@ -112,7 +122,7 @@ if { [info exists script] } {
     dict set common ExecKTX no
     dict set common ExecNetBox no
     dict set common ExecPublicKeys no
-    dict set common ExecCommand yes
+    dict set common ExecRDP no
 
     puts "Executing custom script: $script_orig"
     unset script_orig
@@ -163,16 +173,14 @@ proc puts { args } {
 
 }
 
-
-set exec_cmd    [dict get $common ExecCommand]
-
-if { $exec_cmd && [llength [info commands "::${script_prefix}::init"]] } {
+if { [info exists script_prefix] && [llength [info commands "::${script_prefix}::init"]] } {
     ::${script_prefix}::init
 }
 
 set exec_ktx    [dict get $common ExecKTX]
 set exec_netbox [dict get $common ExecNetBox]
 set exec_keys   [dict get $common ExecPublicKeys]
+set exec_rdp    [dict get $common ExecRDP]
 
 if { $exec_ktx } {
 
@@ -186,9 +194,17 @@ if { $exec_ktx } {
         exit 1
     }
 
-    set fd [open $base_ktx]
+    set fd [open $base_ktx r]
     set base_ktx [split [read $fd] \n]
     close $fd
+
+    if { ![file exists $out_ktx] } {
+        file mkdir $out_ktx
+    }
+
+    if { ![file exists [file join $out_ktx root]] } {
+        file mkdir [file join $out_ktx root]
+    }
 
     foreach fn [concat \
         [glob -nocomplain -directory $out_ktx "*.ktx"] \
@@ -197,10 +213,6 @@ if { $exec_ktx } {
         if { [string equal -nocase [file tail $fn] [file tail [file normalize [dict get $common BaseKTX]]]] } \
             continue
         file delete $fn
-    }
-
-    if { ![file exists [file join $out_ktx root]] } {
-        file mkdir [file join $out_ktx root]
     }
 
 } {
@@ -219,9 +231,17 @@ if { $exec_netbox } {
         exit 1
     }
 
-    set fd [open $base_netbox]
+    set fd [open $base_netbox r]
     set base_netbox [split [read $fd] \n]
     close $fd
+
+    if { ![file exists $out_netbox] } {
+        file mkdir $out_netbox
+    }
+
+    if { ![file exists [file join $out_netbox root]] } {
+        file mkdir [file join $out_netbox root]
+    }
 
     foreach fn [concat \
         [glob -nocomplain -directory $out_netbox "*.netbox"] \
@@ -232,12 +252,38 @@ if { $exec_netbox } {
         file delete $fn
     }
 
-    if { ![file exists [file join $out_netbox root]] } {
-        file mkdir [file join $out_netbox root]
+} {
+    puts "Creating NetBox files is OFF"
+}
+
+if { $exec_rdp } {
+
+    set out_rdp  [file normalize [dict get $common PathRDP]]
+    set base_rdp [file normalize [dict get $common BaseRDP]]
+    puts "Create RDP files in directory: [dict get $common PathRDP]"
+    puts "Base RDP file: [dict get $common BaseRDP]"
+
+    if { ![file exists $base_rdp] } {
+        puts "Error: BaseRDP file not exists."
+        exit 1
+    }
+
+    set fd [open $base_rdp r]
+    set base_rdp [split [read $fd] \n]
+    close $fd
+
+    if { ![file exists $out_rdp] } {
+        file mkdir $out_rdp
+    }
+
+    foreach fn [glob -nocomplain -directory $out_rdp "*.rdpc"] {
+        if { [string equal -nocase [file tail $fn] [file tail [file normalize [dict get $common BaseRDP]]]] } \
+            continue
+        file delete $fn
     }
 
 } {
-    puts "Creating NetBox files is OFF"
+    puts "Creating RDP files is OFF"
 }
 
 if { $exec_keys } {
@@ -363,7 +409,29 @@ foreach { host config } $hosts {
         return $out
     }}]
 
-    set DomainDone no
+    set make_rdp [list apply {{ base config } {
+
+        set out [list]
+        foreach line $base {
+            foreach { key val } $config {
+
+                if { $key ni {HostName UserName Password Domain} } \
+                    continue
+
+                if { [string first ":$key" $line] != -1 } {
+                    regsub ":$key" $line ":$val" line
+                    break
+                }
+
+            }
+            lappend out $line
+        }
+
+        return $out
+    }}]
+
+    unset -nocomplain DomainDone
+    array set DomainDone {}
 
     foreach { host config } [{*}$gen $host $config $gen] {
 
@@ -417,10 +485,23 @@ foreach { host config } $hosts {
 
         }
 
+        if { $exec_rdp && [dict get $config ExecRDP] } {
+
+            puts -nonewline " RDP: "
+
+            set fd [open [file join $out_rdp "[dict get $config Prefix].rdpc"] w]
+            fconfigure $fd -translation lf
+            puts -nonewline $fd [join [{*}$make_rdp $base_rdp [dict merge $config [list Password [dict get $config UserPass]]]] \n]
+            close $fd
+
+            puts -nonewline "OK."
+
+        }
+
         if { $exec_keys } {
 
             puts -nonewline " Key(user): "
-            if { $DomainDone } {
+            if { [info exists DomainDone([dict get $config Domain])] } {
                 puts -nonewline "SKIP."
             } {
                 catch { exec -- {*}[auto_execok ssh-copy-id] -q -i "[dict get $config PublicKeyFile]" [dict get $config UserName]@[dict get $config HostName] [dict get $config UserPass] } out
@@ -435,9 +516,9 @@ foreach { host config } $hosts {
 
         }
 
-        if { $exec_cmd } {
+        if { [info exists script_prefix] } {
 
-            if { $DomainDone } {
+            if { [info exists DomainDone([dict get $config Domain])] } {
                 puts -nonewline " SKIP."
             } {
                 if { [catch { ::${script_prefix}::run $host [dict merge $config [list Password [dict get $config UserPass]]] } err] } {
@@ -451,8 +532,8 @@ foreach { host config } $hosts {
 
         puts ""
 
-        if { [dict get $config DomainControl] } {
-            set DomainDone 1
+        if { [dict get $config DomainControl] && [dict get $config Domain] ne "" } {
+            set DomainDone([dict get $config Domain]) 1
         }
     }
 
