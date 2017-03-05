@@ -82,7 +82,7 @@ for { set i 0 } { $i < [llength $argv] } { incr i } {
             puts stderr "Error, double host mask"
             exit 1
         }
-        set host-mask [lindex $argv $i]
+        set host-mask [lindex $argv [incr i]]
         continue
     }
     set argv [lrange $argv $i end]
@@ -294,16 +294,31 @@ if { $exec_keys } {
     puts "Adding public key on hosts is OFF"
 }
 
-proc check_connect { host port } {
-    if { [catch { socket $host $port } sockid] } {
+proc check_connect { host port { timeout 10000 } } {
+
+    set sk [socket -async $host $port]
+    set timeout [expr { [clock milliseconds] + $timeout }]
+
+    while { [fconfigure $sk -connecting] } {
+       if { [clock milliseconds] >= $timeout } {
+           catch { close $sk }
+           return 0
+       }
+       after 50
+    }
+
+    if { [fconfigure $sk -error] ne "" } {
+        catch { close $sk }
         return 0
     }
-    close $sockid
+
+    close $sk
     return 1
+
 }
 
-proc check_ssh_connect { config } {
-    return [check_connect [dict get $config HostName] 22]
+proc check_ssh_connect { config { timeout 10000 } } {
+    return [check_connect [dict get $config HostName] 22 $timeout]
 }
 
 puts "Global domain control: [dict get $common DomainControl]"
