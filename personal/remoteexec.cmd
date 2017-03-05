@@ -4,7 +4,7 @@
 @goto :eof
 }
 
-namespace eval ::sh_script {
+namespace eval ::remoteexec {
 
     variable shell_script
     variable shell_command
@@ -51,7 +51,7 @@ namespace eval ::sh_script {
         variable shell_script
         variable shell_command
 
-        if { ![check_ssh_connect $config] } {
+        if { ![check_ssh_connect $config 2000] } {
             puts -nonewline " OFFLINE"
         } {
 
