@@ -22,14 +22,27 @@ set common {
     DomainControl   no
 }
 
-if { ![file exists remote_config.tcl] } {
-    puts "Error: Config not found!"
+set remoteconfig "remoteconfig.tcl"
+if { ![file exists $remoteconfig] } {
+   set remoteconfig "remoteconfig.cmd"
+   if { ![file exists $remoteconfig] } {
+        puts "Error: Config not found!"
+        exit 1
+   }
+}
+
+set fd [open $remoteconfig r]
+set data [read $fd]
+close $fd
+
+if { [catch {lindex $data 0} _] || [catch {lindex $data 1} __] } {
+    puts "Error while parse config file: $remote_config"
     exit 1
 }
 
-set fd [open remote_config.tcl]
-set data [read $fd]
-close $fd
+if { $_ eq {::if} && [string is boolean -strict $__] } {
+    set data [lrange $data 3 end]
+}
 
 foreach { section data } $data {
     if { $section eq "common" } {
@@ -44,7 +57,6 @@ foreach { section data } $data {
     unset section data
 }
 
-
 for { set i 0 } { $i < [llength $argv] } { incr i } {
     set opt [lindex $argv $i]
     if { $opt eq "-script" || $opt eq "--script" } {
@@ -55,15 +67,25 @@ for { set i 0 } { $i < [llength $argv] } { incr i } {
        set script [lindex $argv [incr i]]
        continue
     }
-    if { [info exists host-mask] } {
-        puts stderr "Error, double host mask"
-        exit 1
+    if { $opt eq "-filter" || $opt eq "--filter" || $opt eq "-mask" || $opt eq "--mask" } {
+        if { [info exists host-mask] } {
+            puts stderr "Error, double host mask"
+            exit 1
+        }
+        set host-mask [lindex $argv $i]
+        continue
     }
-    set host-mask [lindex $argv $i]
+    set argv [lrange $argv $i end]
 }
 
+if { $i == [llength $argv] } {
+    set argv [list]
+}
 
 if { [info exists script] } {
+
+    set script_orig $script
+
     set script [file normalize $script]
 
     if { ![file exists $script] } {
@@ -75,7 +97,6 @@ if { [info exists script] } {
     }
 
     set script_prefix [file rootname [file tail $script]]
-    set argv [lrange $argv 1 end]
 
     if { [catch { source $script } err] } {
         puts "Error while loading custom execute script:"
@@ -97,7 +118,7 @@ if { [info exists script] } {
     unset script_orig
 }
 
-catch { file delete -force remote_generate.log }
+catch { file delete -force remotetool.log }
 
 rename ::puts ::puts_rmgn
 proc puts { args } {
@@ -129,7 +150,7 @@ proc puts { args } {
         flush stdout
     }
 
-    if { $channel eq "stdout" && ![catch { open remote_generate.log a+ } fd] } {
+    if { $channel eq "stdout" && ![catch { open remotetool.log a+ } fd] } {
         if { [info exists nonewline] } {
             ::puts_rmgn -nonewline $fd $message
         } {
