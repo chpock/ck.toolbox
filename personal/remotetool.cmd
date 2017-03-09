@@ -402,10 +402,18 @@ foreach { host config } $hosts {
     set make_netbox [list apply {{ base config } {
         set out [list]
 
+        if { [dict exists $config PrivateKeyFile] } {
+            dict set config TlsCertificateFile [dict get $config PrivateKeyFile]
+            dict set config PublicKeyFile      [dict get $config PrivateKeyFile]
+        }
+
         foreach line $base {
+
             regsub {(<Session name=")(.*?)(">)} $line "\\1[urlencode "Session [dict get $config Prefix]"]\\3" line
+
             foreach { key val } $config {
-                if { $key ni {HostName UserName RemoteDirectory} } \
+
+                if { $key ni {HostName UserName RemoteDirectory TlsCertificateFile PublicKeyFile} } \
                     continue
 
                 if { $val eq "NULL" } {
