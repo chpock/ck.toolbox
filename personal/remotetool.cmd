@@ -31,7 +31,14 @@ set common {
 
     DomainControl   no
     Domain          ""
+
+    ## PuTTY advanced settings
+    # 0 - backspace is "Control-?" (default)
+    # 1 - backspace is "Control-H"
+    BackspaceIsDelete 0
 }
+
+regsub -all -line {^\s*#.*?$} $common {} common
 
 set remoteconfig "remoteconfig.tcl"
 if { ![file exists $remoteconfig] } {
@@ -385,7 +392,7 @@ foreach { host config } $hosts {
                     set key "PublicKeyFile"
                 }
 
-                if { $key ni {HostName UserName PublicKeyFile RemoteCommand} } \
+                if { $key ni {HostName UserName PublicKeyFile RemoteCommand BackspaceIsDelete} } \
                     continue
 
                 if { [string first "$key\\" $line] == 0 } {
