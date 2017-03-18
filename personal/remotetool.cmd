@@ -8,6 +8,7 @@ set version "1.0"
 
 set common {
     UserName        build
+    RootName        root
 
     PathKTX         .
     BaseKTX         "Base.ktx"
@@ -480,7 +481,12 @@ foreach { host config } $hosts {
             if { ![dict get $config NoRoot] } {
                 set fd [open [file join $out_ktx root "[dict get $config Prefix].ktx"] w]
                 fconfigure $fd -translation lf
-                puts -nonewline $fd [join [{*}$make_ktx $base_ktx [dict merge $config [list UserName root Password [dict get $config RootPass]]]] \n]
+                puts -nonewline $fd [join [{*}$make_ktx $base_ktx \
+                    [dict merge $config [list \
+                        UserName [dict get $config RootName] \
+                        Password [dict get $config RootPass] \
+                    ]] \
+                ] \n]
                 close $fd
             }
 
@@ -500,7 +506,12 @@ foreach { host config } $hosts {
             if { ![dict get $config NoRoot] } {
                 set fd [open [file join $out_netbox root "[dict get $config Prefix].netbox"] w]
                 fconfigure $fd -translation lf
-                puts -nonewline $fd [join [{*}$make_netbox $base_netbox [dict merge $config [list UserName root Password [dict get $config RootPass]]]] \n]
+                puts -nonewline $fd [join [{*}$make_netbox $base_netbox \
+                    [dict merge $config [list \
+                        UserName [dict get $config RootName] \
+                        Password [dict get $config RootPass] \
+                    ]] \
+                ] \n]
                 close $fd
             }
 
@@ -533,7 +544,7 @@ foreach { host config } $hosts {
 
             if { ![dict get $config NoRoot] } {
                 puts -nonewline " Key(root): "
-                catch { exec -- {*}[auto_execok ssh-copy-id] -q -i "[dict get $config PublicKeyFile]" root@[dict get $config HostName] [dict get $config RootPass] } out
+                catch { exec -- {*}[auto_execok ssh-copy-id] -q -i "[dict get $config PublicKeyFile]" [dict get $config RootName]@[dict get $config HostName] [dict get $config RootPass] } out
                 puts -nonewline "$out."
             }
 
