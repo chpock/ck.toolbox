@@ -36,6 +36,9 @@ set common {
     # 0 - backspace is "Control-?" (default)
     # 1 - backspace is "Control-H"
     BackspaceIsDelete 0
+    # 0 - home/end: standard - \e[1~ and \e[4~
+    # 3 - home/end: xterm    - \eOH  and \eOF
+    RXVTHomeEnd 0
 }
 
 regsub -all -line {^\s*#.*?$} $common {} common
@@ -392,7 +395,7 @@ foreach { host config } $hosts {
                     set key "PublicKeyFile"
                 }
 
-                if { $key ni {HostName UserName PublicKeyFile RemoteCommand BackspaceIsDelete} } \
+                if { $key ni {HostName UserName PublicKeyFile RemoteCommand BackspaceIsDelete RXVTHomeEnd} } \
                     continue
 
                 if { [string first "$key\\" $line] == 0 } {
