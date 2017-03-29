@@ -72,10 +72,17 @@ foreach { section data } $data {
         }
     } elseif { $section eq "hosts" } {
         set hosts $data
+    } elseif { $section eq "groups" } {
+        set groups $data
     } else {
-        puts "Error: Unknown folder '$section' in config!"
+        puts "Error: Unknown section '$section' in config!"
     }
     unset section data
+}
+
+if { ![info exists hosts] } {
+   puts stderr "Error, no 'host' section in config file"
+   exit 1
 }
 
 for { set i 0 } { $i < [llength $argv] } { incr i } {
@@ -469,8 +476,21 @@ foreach { host config } $hosts {
 
     foreach { host config } [{*}$gen $host $config $gen] {
 
-        set config [dict merge $common [list HostName $host] $config]
+        set actualConfig $common
+        foreach { group groupConfig } $groups {
 
+           if { ![dict exists $groupConfig Hosts] } continue
+
+           foreach groupHost [dict get $groupConfig Hosts] {
+               if { [string match $groupHost $host] } {
+                   set actualConfig [dict merge $actualConfig $groupConfig]
+                   break
+               }
+           }
+               
+        }
+        set config [dict merge $actualConfig [list HostName $host] $config]
+        
         if { [dict get $config Disabled] } \
             continue
 
